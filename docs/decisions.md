@@ -9,7 +9,7 @@
 - Done: repo, env, accounts
 - Problems: OpenWeather key not active yet, takes up to a couple of hours
 
-## Day 2 (Nov 16): API exploration
+## Day 2 (Nov 14): API exploration
 
 **Goal:** Test every data source for Karachi and decide which ones to use.
 
@@ -56,8 +56,13 @@
 
 **Failure test:** (fill in: wrong key -> 3 retries -> FAILED, no crash, other sources OK)
 
-**Problems**
-- Pasted Python code into the PowerShell terminal instead of the .py file.
-- Typo in the venv activation command.
-
-**Tomorrow:** fuse Open-Meteo and OpenWeather into one clean row per hour.
+## Day 3 (Nov 15): Source fusion
+- Decision: Open-Meteo = primary source for all features and history.
+  OpenWeather live = separate ow_ columns (cross-check and fallback), since it
+  has no history.
+- Pipeline keeps only past hours (timestamp <= current UTC hour).
+- Wind requested in m/s directly via wind_speed_unit=ms.
+- Added pressure and cloud cover as extra features (useful for rain).
+- Result: 59 rows = 59 expected hourly rows, 0 missing in primary columns.
+- Same-hour air check: PM2.5 27.5 (Open-Meteo) vs 17.6 (OpenWeather);
+  PM10 52.5 vs 65.2. Same order of magnitude, not identical (different models).
