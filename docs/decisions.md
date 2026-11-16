@@ -66,3 +66,22 @@
 - Result: 59 rows = 59 expected hourly rows, 0 missing in primary columns.
 - Same-hour air check: PM2.5 27.5 (Open-Meteo) vs 17.6 (OpenWeather);
   PM10 52.5 vs 65.2. Same order of magnitude, not identical (different models).
+
+## Day 4 (Nov 16): Imputation and features
+- Imputation: reindex to a full hourly range; linear interpolation for gaps
+  <= 3h; forward-fill at the end of the data (<= 3h); wind direction via
+  sin/cos; precipitation filled with 0 for short gaps; gaps longer than 3h
+  left as NaN and reported; was_imputed flag per row.
+- Features: hour/day/month, sin/cos encodings, lags (1,3,6,24h), rolling
+  mean/std (6h, 24h), diff1/diff3 for 8 base metrics. Total 104 columns.
+- Result: 350 rows (14 days), 326 complete. First 24h lost to lags.
+- Leakage check: lag24(t) == value(t-24), passed.
+- ISSUE: gap test (2h gap + 8h gap) left only 2 of 8 hours empty in the long
+  gap, because interpolate(limit=3) and ffill(limit=3) stacked.
+  FIX: fill everything first, then blank out any NaN run longer than 3h
+  (long_gap_mask). Precipitation follows the same rule.
+  RE-TEST: rows_imputed = 2, 8 hours still missing per column. Passed.
+- ISSUE: impute() returned None after an edit removed its last lines.
+  LESSON: after editing a function, check that the return is still there.
+- Problems: ran impute.py as a shell command; files saved in src/ingestion/
+  instead of src/features/. Fixed by moving them and using `python -m`.
