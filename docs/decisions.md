@@ -85,3 +85,20 @@
   LESSON: after editing a function, check that the return is still there.
 - Problems: ran impute.py as a shell command; files saved in src/ingestion/
   instead of src/features/. Fixed by moving them and using `python -m`.
+
+## Day 5 (Nov 16): Hopsworks feature store
+- Feature groups (version 2): weather_raw (Open-Meteo), openweather_live
+  (ow_ columns), weather_features (imputed + 104 engineered columns).
+  Primary key and event time: ts (UTC).
+- Decision: OpenWeather live data has its own group, because it only exists for
+  the current hour and would be overwritten with NaN by re-writes of older hours.
+- Idempotency: Hopsworks upserts on the primary key. Test: (fill in your numbers)
+- ISSUE 1: pip install typo (hopswork instead of hopsworks). Fixed spelling.
+- ISSUE 2: login failed with 403 "no valid role" because the project name in
+  .env did not match. Fixed with the exact project name.
+- ISSUE 3: "delta library is not installed". FIX: pip install deltalake.
+- ISSUE 4: direct write failed with an HDFS "RPC listener disconnected" error
+  on Windows. FIX: stream=True (writes go through Kafka and a Hopsworks
+  materialization job) and a new feature group version (2).
+- All numeric columns cast to float64; ts cast to microseconds to avoid a
+  precision warning.
