@@ -86,7 +86,7 @@
 - Problems: ran impute.py as a shell command; files saved in src/ingestion/
   instead of src/features/. Fixed by moving them and using `python -m`.
 
-## Day 5 (Nov 16): Hopsworks feature store
+## Day 5 (Nov 17): Hopsworks feature store
 - Feature groups (version 2): weather_raw (Open-Meteo), openweather_live
   (ow_ columns), weather_features (imputed + 104 engineered columns).
   Primary key and event time: ts (UTC).
