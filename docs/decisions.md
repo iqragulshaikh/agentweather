@@ -103,8 +103,7 @@
 - All numeric columns cast to float64; ts cast to microseconds to avoid a
   precision warning.
 
-## Day 6 
-## Day 6 (Nov 18-21): Backfill, targets and data layer
+## Day 6 (Nov 18-19): Backfill, targets and data layer
 
 **Goal:** build a clean year of hourly history with 24h-ahead targets in the
 Feature Store.
@@ -174,3 +173,44 @@ Feature Store.
 - The stitched forecast series can change when the model version changes.
 - Rain validation: Oct-Nov has only 1-2% rain, so a last-weeks validation split
   can't evaluate the rain classifier. Use expanding-window CV with monsoon folds.
+
+## Day 7: EDA and naive baseline
+- Data: 8,801 hourly rows (8,777 with targets), Nov 2025 -> Nov 2026. Charts in
+  Karachi time. 0 missing values. Charts saved in docs/eda/.
+- AQI: right-skewed (median 83, 90th pct 120, 99th pct 153, max 165). 21.9% of
+  hours > 100, 1.7% > 150. Worst in winter (monthly mean about 105-118), cleanest
+  in the monsoon (about 75-80). Almost no daily cycle (hourly mean 87-92).
+  Correlates with pressure (+0.48) and wind speed (-0.41).
+- Temperature: 9.3-41.2 C, mean 26.5. Coldest Jan (about 19), hottest May-Jun
+  (about 30.5). Daily minimum at 06:00 and maximum at 14:00 Karachi time.
+- Humidity: 7-100%, mean 66. Lag-24 autocorrelation 0.84.
+- UV: zero at night (about 4,600 hours), peak at 13:00. Highest in Apr-Aug with
+  daily maxima capped at 7.8-7.85, probably too low for the latitude (to verify).
+- Wind: mean 3.0 m/s (max 6.95). Direction rotates from WNW (night/morning) to SW
+  (afternoon), consistent with the sea breeze.
+- Precipitation: 553 rain hours (>= 0.1 mm), 464 of them in Jun-Sep; total about
+  111 mm (model-based). Mostly light: July is 19.1 mm over 149 hours.
+- Autocorrelation at lag 24: temp 0.97, UV 0.98, humidity 0.84, AQI 0.71,
+  wind speed 0.71, precipitation 0.01.
+- Naive baseline (value 24 h ago), validation-like last 20% (since about Sep 8):
+  | metric | RMSE | MAE | R2 |
+  | AQI | 14.56 | 10.75 | 0.315 |
+  | Temperature | 1.085 | 0.797 | 0.890 |
+  | Humidity | 12.25 | 8.35 | 0.682 |
+  | UV | 0.352 | 0.078 | 0.975 |
+  | Wind speed | 0.852 | 0.644 | 0.295 |
+  | Precipitation | 0.081 | 0.008 | -0.850 |
+  | Wind direction (error, deg) | 36.8 | 25.5 | n/a |
+  UV daytime-only MAE 0.246. Rain classifier baseline: precision = recall = F1
+  = 0.24 (rain rate 2.1%); full year 0.35 (rain rate 6.3%).
+- Implications for modelling:
+  - Temperature and UV baselines are very strong, so expect small gains.
+  - AQI, wind speed and humidity have the most room to improve.
+  - Precipitation (mm) baseline is worse than a constant, so judge rain with the
+    classifier (precision, recall, PR-AUC), never accuracy.
+  - The last 20% contains little rain (2.1%), so use expanding-window CV with
+    monsoon folds.
+- Limitations: UV maximum looks low; AQI is smooth and probably underestimates
+  real spikes; rain total (about 111 mm) to be checked against a climate source;
+  one year of history only.
+- Problems: (fill in, or "None")

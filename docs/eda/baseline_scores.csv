@@ -1,0 +1,15 @@
+set,metric,RMSE,MAE,R2
+full year,aqi,16.084,10.983,0.416
+full year,temp_c,1.151,0.762,0.938
+full year,humidity,11.178,7.307,0.683
+full year,uv_index,0.446,0.125,0.965
+full year,wind_speed_ms,0.95,0.714,0.41
+full year,precip_mm,0.212,0.021,-0.975
+full year,wind_direction (deg error),40.164,24.876,
+last 20% (validation-like),aqi,14.557,10.753,0.315
+last 20% (validation-like),temp_c,1.085,0.797,0.89
+last 20% (validation-like),humidity,12.249,8.354,0.682
+last 20% (validation-like),uv_index,0.352,0.078,0.975
+last 20% (validation-like),wind_speed_ms,0.852,0.644,0.295
+last 20% (validation-like),precip_mm,0.081,0.008,-0.85
+last 20% (validation-like),wind_direction (deg error),36.804,25.508,
