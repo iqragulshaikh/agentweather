@@ -174,7 +174,7 @@ Feature Store.
 - Rain validation: Oct-Nov has only 1-2% rain, so a last-weeks validation split
   can't evaluate the rain classifier. Use expanding-window CV with monsoon folds.
 
-## Day 7: EDA and naive baseline
+## Day 7 (20 NOV): EDA and naive baseline
 - Data: 8,801 hourly rows (8,777 with targets), Nov 2025 -> Nov 2026. Charts in
   Karachi time. 0 missing values. Charts saved in docs/eda/.
 - AQI: right-skewed (median 83, 90th pct 120, 99th pct 153, max 165). 21.9% of
