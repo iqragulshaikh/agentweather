@@ -102,3 +102,75 @@
   materialization job) and a new feature group version (2).
 - All numeric columns cast to float64; ts cast to microseconds to avoid a
   precision warning.
+
+## Day 6 
+## Day 6 (Nov 18-21): Backfill, targets and data layer
+
+**Goal:** build a clean year of hourly history with 24h-ahead targets in the
+Feature Store.
+
+### 1. Targets
+- Target for row t = value observed at t+24h (temp, humidity, UV, AQI, wind
+  speed, precip_mm). Rain is a binary target (precip >= 0.1 mm). Wind
+  direction is stored as sin/cos.
+- Stored in a separate feature group (`weather_targets`) so targets cannot leak
+  into the features.
+- The newest 24 rows have no target and are used for forecasting only.
+- Check: target(t) == observed value at t+24h, passed.
+
+### 2. First backfill attempt (past_days=92) and the problem
+- Result: 2,215 hourly rows, but weather columns were empty for the first 552 h
+  and UV for the first 962 h. Only about 52 days were usable (autumn only).
+- Diagnosis: the forecast endpoint returns weather only from Sep 10 and UV from
+  Sep 27, whatever past_days says. AQI covered the full window.
+  The limit is in the source, not the pipeline. impute() correctly refused to
+  invent 23-40 days of data.
+- Finding: rain at t+24 occurred in only 1.44% of hours (about 18 events), too
+  few for a rain classifier.
+
+### 3. Fix: date-range history endpoints
+- Docs check: the Archive API has no uv_index. The Historical Forecast API has
+  the same variables as the live API (including UV), covers about 2022 onwards
+  and accepts start_date/end_date. The Air Quality API accepts date ranges too.
+- DECISION: backfill 12 months from the Historical Forecast API (weather) and
+  the Air Quality API, in 30-day chunks, with the same column names as the live
+  pipeline (no train/serve skew).
+- Probe: Nov 2025 and Jul 2026 returned HTTP 200 with 0 nulls in all columns.
+- Dry run (before writing anything): 8,784 hourly rows (Nov 19 2025 -> Nov 19
+  2026), 0 gaps, 0 imputed, 26/26 chunks fetched, target check passed.
+- Rain by month: about 0-3% Nov-May, 11.5% Jun, 18% Jul, 24% Aug, 10% Sep,
+  1-2% Oct-Nov. 553 rain hours of 8,760 (6.3%).
+- Values physically plausible: temp 9.3-41.2 C, humidity 7-100%, wind up to
+  6.95 m/s.
+
+### 4. Issues and fixes
+- ISSUE: Hopsworks upserts replace whole rows, so rewriting a window would
+  overwrite its first 24 rows (incomplete lags) with NaN features.
+  FIX: drop 24 warm-up rows before every write (`feats.iloc[24:]`).
+- ISSUE: the 14-day run was made before this fix was in run_pipeline.py. It
+  overwrote about 24 good rows (~Nov 7) with NaN lags. Found by comparing the
+  printed shapes (features 353 = raw 353, expected 329).
+  FIX: added the trim, then re-ran with a 21-day window so the damaged rows were
+  recomputed from complete history.
+- ISSUE: Kafka errors during upload (`_TIMED_OUT`, then `_TRANSPORT`), before
+  any data was written. They were temporary network problems.
+  FIX: retried; write_group now retries 3 times (30s/60s backoff). Retrying is
+  safe because writes are upserts.
+- LESSON: compare printed row counts before every write, and check that a fix
+  is really in the file.
+
+### 5. Final verification (check_backfill)
+- features 8,801 | targets 8,777 | joined 8,777 | duplicate ts 0
+- rows = expected hourly rows (8,777), so no gaps
+- rows with no NaN anywhere: 8,777 of 8,777
+- Range: Nov 20 2025 -> Nov 20 2026. The newest 24 feature rows have no target
+  (forecasting only).
+
+### 6. Limitations (for the report)
+- Precipitation, AQI and UV are model output, not sensor or gauge data.
+  AQI (max 165) probably smooths real Karachi pollution spikes. UV max 7.85
+  looks low for summer (to check in EDA).
+- Only one year of history: each season is seen once.
+- The stitched forecast series can change when the model version changes.
+- Rain validation: Oct-Nov has only 1-2% rain, so a last-weeks validation split
+  can't evaluate the rain classifier. Use expanding-window CV with monsoon folds.

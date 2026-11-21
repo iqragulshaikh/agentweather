@@ -48,3 +48,8 @@ day 6 files:
 -src/features/run_pipeline.py
 -src/features/dry_run.py
 -src/features/check_backfill.py
+-src/features/diagnose.py ( for fixing issue )
+-src/features/probe_history.py ( for fixing issue )
+day 6b file
+src/features/history.py
+src/features/dry_run_history.py

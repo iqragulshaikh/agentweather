@@ -16,6 +16,7 @@ def main(past_days=14):
 
     clean, report = impute(om)
     feats = build_features(clean)
+    feats = feats.iloc[24:]  # drop warm-up rows: lags/rolling windows are incomplete
     targets = build_targets(clean)
     print("impute report:", report)
     print("raw:", om.shape, "| features:", feats.shape, "| targets:", targets.shape)
