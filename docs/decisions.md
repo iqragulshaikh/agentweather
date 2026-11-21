@@ -214,3 +214,76 @@ Feature Store.
   real spikes; rain total (about 111 mm) to be checked against a climate source;
   one year of history only.
 - Problems: (fill in, or "None")
+
+## Day 8: Classical ML (Ridge, Random Forest) with honest validation
+
+**Goal:** train the first two model families and compare them with the naive
+baseline (value 24 h ago) on all metrics.
+
+### 1. Setup
+- Expanding-window CV, 5 folds x 1,200 h (50 days). Folds 3-4 are the monsoon
+  (Jun 23 - Oct 1). A 24 h gap between training and validation, because the
+  target looks 24 h ahead (no gap = leakage).
+- Models predict the change from the current value (target minus now);
+  precipitation is predicted directly. Features are scaled inside a pipeline.
+- Dropped month, hour, weekday and raw wind-direction features (with one year
+  of data month features would memorize the year; hour and direction stay as
+  sin/cos). 97 features.
+- Models: Ridge (alpha 10), Random Forest (150 trees, min leaf 5,
+  max_features 0.33). Rain: logistic regression and Random Forest classifier.
+
+### 2. First results (mean RMSE over folds: naive / Ridge / RF)
+- AQI 11.53 / 11.23 / 12.58; humidity 8.31 / 9.60 / 8.49;
+  temperature 0.974 / 1.113 / 1.052; UV daytime 0.715 / 0.659 / 0.677;
+  wind speed 0.901 / 0.904 / 0.900; wind direction 28.7 / 27.1 / 26.9 deg.
+- Precipitation (mm): negative R2 for every model, so direct regression is
+  unusable.
+- Rain (PR-AUC / Brier): logistic regression 0.252 / 0.068, Random Forest
+  0.191 / 0.073, naive 0.138 / 0.114, constant 0.089 / 0.085. Fold 5 has only
+  about 18 rain events (noisy).
+
+### 3. ISSUE: models lost to the baseline on several metrics
+- Models won mostly in folds 4-5 (Aug-Nov) and lost in folds 1-3 (Mar-Aug).
+- Diagnosis (bias per fold): AQI (RF) +13.4 / +8.0 in folds 1-2, humidity (RF)
+  -7.7 / -4.3, wind speed -0.7 in fold 2. The winter-only training window teaches
+  a seasonal drift that does not apply in spring and summer. Temperature bias was
+  at most 0.5, so its loss was variance (noise), not drift.
+- FIX 1: much stronger Ridge regularization (alpha 10 -> 10,000) improved every
+  metric (AQI 11.23 -> 10.00, humidity 9.76 -> 8.08, temperature 1.113 -> 0.970,
+  wind 0.904 -> 0.833).
+- FIX 2: shrink the predicted correction: prediction = now + lambda x predicted
+  change (lambda 0 = baseline, 1 = full model). Lambda 0.25-0.75 was best.
+
+### 4. ISSUE: tuning on the reported folds is optimistic
+- FIX: leave-one-fold-out selection. The setting (model, alpha, lambda) is chosen
+  using 4 folds and scored on the 5th.
+- Honest result (naive -> selected RMSE, folds better): AQI 11.53 -> 9.71
+  (-15.8%, 5/5), wind speed 0.901 -> 0.827 (-8.2%, 5/5), humidity 8.31 -> 8.06
+  (-3.1%, 5/5), temperature 0.974 -> 0.958 (-1.6%, 4/5).
+- Choices were stable: AQI picked Ridge alpha 1000 lambda 0.75 in all 5 rounds;
+  humidity picked Random Forest lambda 0.5 in 4 of 5; temperature picked Ridge
+  alpha 10 lambda 0.25 every time. The alpha grid optimum is not at its edge.
+- AQI fold 1 went from -10% (Ridge alpha 10) to +8% after the fix.
+
+### 5. Conclusions and decisions
+- Models clearly beat the baseline on AQI and wind speed, modestly on humidity.
+  Temperature only ties it (0.01-0.02 C per fold); the 24 h-ago value is very
+  hard to beat for temperature.
+- Candidate set for the training pipeline: Ridge (several alphas), Random Forest,
+  each with a shrink factor lambda; logistic regression for rain. The pipeline
+  picks the best candidate per metric by walk-forward validation and registers it
+  only if it beats the naive baseline.
+- Precipitation (mm) will be P(rain) x typical rain intensity.
+- UV and wind direction are not tuned yet.
+
+### 6. Minor notes
+- Humidity at alpha 10 differs between scripts (9.596 vs 9.758) because the first
+  script clipped predictions to 0-100%.
+- CV is pessimistic: production retrains daily, while CV folds retrain only every
+  50 days.
+
+### 7. Limitations (for the report)
+- Candidate grids were widened after seeing first results, so some optimism remains.
+- One year of data only: each season is seen once, and spring/summer folds are
+  validated by a model that never saw those seasons.
+- Humidity gain is modest; temperature gain is practically zero.
