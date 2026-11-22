@@ -215,7 +215,7 @@ Feature Store.
   one year of history only.
 - Problems: (fill in, or "None")
 
-## Day 8: Classical ML (Ridge, Random Forest) with honest validation
+## Day 8 (21 NOV): Classical ML (Ridge, Random Forest) with honest validation
 
 **Goal:** train the first two model families and compare them with the naive
 baseline (value 24 h ago) on all metrics.
@@ -288,7 +288,7 @@ baseline (value 24 h ago) on all metrics.
   validated by a model that never saw those seasons.
 - Humidity gain is modest; temperature gain is practically zero.
 
-## Day 9: Statistical family (SARIMAX)
+## Day 9 (22 NOV): Statistical family (SARIMAX)
 
 ### 1. Model and protocol
 - statsmodels SARIMAX with 4 daily sin/cos harmonics as exog (a seasonal period of
