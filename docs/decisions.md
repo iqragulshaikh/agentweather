@@ -287,3 +287,57 @@ baseline (value 24 h ago) on all metrics.
 - One year of data only: each season is seen once, and spring/summer folds are
   validated by a model that never saw those seasons.
 - Humidity gain is modest; temperature gain is practically zero.
+
+## Day 9: Statistical family (SARIMAX)
+
+### 1. Model and protocol
+- statsmodels SARIMAX with 4 daily sin/cos harmonics as exog (a seasonal period of
+  24 is slow on 8,000+ hourly rows) and AR(2) errors. Univariate. Prophet skipped
+  (build-tool/install risk on Windows).
+- Same protocol as Ridge/RF: fit on the training rows of each fold; for every
+  validation hour, project the current deviation 24 steps ahead and add the daily
+  profile; same folds, same 24 h gap, same lambda shrinkage. Forecast logic
+  verified against statsmodels' forecast() at 3 origins (4 decimals).
+- Metrics: AQI, temperature, humidity, wind speed (UV is zero at night and wind
+  direction is circular; to be tuned later).
+
+### 2. Results: expanding window
+- Mean RMSE, naive / full model / best lambda: AQI 11.53 / 13.55 / 11.12 (0.25);
+  humidity 8.31 / 11.73 / 8.17 (0.25); temperature 0.974 / 2.166 / 0.974 (0);
+  wind 0.901 / 1.268 / 0.853 (0.25).
+- ISSUE: the full model loses to the naive baseline. Temperature RMSE 3.34 and
+  3.08 in folds 1-2 (naive 1.69 and 0.77) but 1.19 in fold 4 (naive 0.67). AR sums
+  about 0.98.
+- Hypothesis: the daily profile fitted on winter is stale in spring; the model
+  lets that error decay, although it repeats every day at the same hour.
+
+### 3. Fix tested (Day 9b): rolling window
+- Refit every 7 days on the last 60 days, with the same 24 h cut-off.
+- Mean RMSE, full / best lambda: AQI 12.83 / 10.92 (0.25); humidity 9.52 / 7.76
+  (0.25); temperature 1.608 / 0.974 (0); wind 0.984 / 0.823 (0.5).
+- Folds 1-4 improved (temperature fold 2: 3.08 -> 1.29), supporting the hypothesis.
+  Fold 5 (Oct-Nov) got worse (temperature 1.44 -> 2.11, AQI 14.7 -> 18.5):
+  60 days before October still contain the monsoon. Fewer rows also make the AR
+  estimates less stable. So a recent window is not uniformly better.
+
+### 4. Selection across all families (leave-one-fold-out, honest)
+- AQI 11.53 -> 9.71 (-15.8%, 5/5 folds, Ridge alpha 1000 lambda 0.75 chosen every
+  time); humidity 8.31 -> 7.94 (-4.5%, 4/5); temperature 0.974 -> 0.958 (-1.6%,
+  4/5); wind 0.901 -> 0.843 (-6.5%, 5/5).
+- Adding SARIMAX-rolling as a candidate made wind worse (0.827 -> 0.843):
+  Ridge and SARIMAX-rolling are equivalent on average (0.821 vs 0.823), so the
+  selection flips between them. More candidates = more selection noise.
+
+### 5. Conclusions
+- Three families covered so far: classical ML (Ridge, RF), statistical (SARIMAX
+  expanding and rolling); the LSTM is next.
+- Clear wins: AQI and wind speed. Small win: humidity (RF, Ridge, SARIMAX-rolling
+  are equivalent within noise). Temperature only ties the baseline.
+- For the training pipeline: keep the candidate set small and require a candidate
+  to beat the baseline in at least 4 of 5 folds (to be decided at registry time).
+
+### 6. Limitations
+- One year of history; spring/summer folds are validated by models that never saw
+  those seasons; the 60-day window is also unrepresentative at season transitions.
+- Candidate grids were widened after seeing first results (some optimism remains).
+- SARIMAX uses only the metric's own history (no pressure, wind, humidity).
