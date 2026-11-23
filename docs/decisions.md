@@ -341,3 +341,51 @@ baseline (value 24 h ago) on all metrics.
   those seasons; the 60-day window is also unrepresentative at season transitions.
 - Candidate grids were widened after seeing first results (some optimism remains).
 - SARIMAX uses only the metric's own history (no pressure, wind, humidity).
+## Day 10: Deep learning family (LSTM, PyTorch CPU) and model selection rule
+
+### 1. Model
+- One LSTM (1 layer, 32 units, dropout 0.2, weight decay 1e-4, gradient clipping),
+  4 outputs (AQI, temperature, humidity, wind speed). Input: last 48 h of 16
+  signals (pollutants, weather, wind sin/cos, pressure, cloud, hour sin/cos);
+  precipitation on log1p scale; inputs scaled with training rows only.
+- Target: scaled 24 h change (scale only, no mean subtraction), same lambda
+  shrinkage as before. Early stopping on the latest 10% of the training rows
+  (24 h gap before it), 3 seeds averaged, max 30 epochs, Adam lr 1e-3, batch 128.
+  Same 5 folds and 24 h gap as every other model. Total run time: 1.0 min.
+
+### 2. Results (mean RMSE over folds, naive / full model / best lambda)
+- AQI 11.53 / 10.96 / 10.93 (0.75, -5.2%); humidity 8.31 / 8.03 / 8.02 (0.75,
+  -3.6%); temperature 0.974 / 0.969 / 0.964 (0.5, -1.0%); wind 0.901 / 0.860 /
+  0.859 (0.75, -4.7%).
+- The LSTM beats the baseline on all four metrics, roughly ties Random Forest, and
+  is behind Ridge on AQI, temperature and wind.
+- Early stopping triggered after 5-10 epochs, i.e. the best epoch was 1-6: the
+  network overfits quickly with about 7,000 rows.
+- Early-stop loss vs the "no change" loss per fold: folds 1, 4 and 5 about 12%
+  lower (skill), fold 2 equal (no skill), fold 3 4% lower. This matches the RMSE
+  results. (Early-stop loss values alone cannot be read as skill, because the
+  "no change" loss differs per fold.)
+
+### 3. Selection across all families (leave-one-fold-out, honest)
+- AQI 11.53 -> 9.71 (-15.8%, 5/5); humidity 8.31 -> 7.94 (-4.5%, 4/5);
+  wind 0.901 -> 0.843 (-6.5%, 5/5); temperature 0.974 -> 0.972 (-0.2%, 3/5).
+- ISSUE: adding the LSTM as a candidate made the temperature result worse
+  (-1.6%, 4/5 before). In fold 1 the selection picked the LSTM, which was worse
+  than naive there (1.727 vs 1.685). With several near-equal candidates, the
+  winner on 4 folds is partly luck (selection noise).
+- DECISION (rule): a candidate replaces the naive forecast for a metric only if
+  it improves RMSE by at least 2% and beats naive in at least 4 of 5 folds
+  (leave-one-fold-out). Result: AQI, humidity and wind use a model; temperature
+  keeps the naive baseline (same hour 24 h ago): no family beats it robustly.
+
+### 4. Conclusions
+- Three families trained and compared: classical ML (Ridge, Random Forest),
+  statistical (SARIMAX expanding and rolling), deep learning (LSTM).
+- Clear wins: AQI (-15.8%) and wind speed (-6.5%); small win: humidity (-4.5%);
+  temperature ties the baseline.
+- Open items: rain, UV and wind direction (Day 11); registry and SHAP (Day 12).
+
+### 5. Limitations
+- One year of data; the LSTM overfits after 1-6 epochs.
+- Candidate grids were widened after seeing early results (some optimism).
+- Selection noise grows with the number of candidates.

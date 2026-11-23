@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 FILES = ["docs/results/day8b_diagnose.csv", "docs/results/day9_sarimax.csv",
-         "docs/results/day9b_sarimax_rolling.csv"]
+         "docs/results/day9b_sarimax_rolling.csv", "docs/results/day10_lstm.csv"]
 res = pd.concat([pd.read_csv(f) for f in FILES if Path(f).exists()], ignore_index=True)
 print("candidate files used:", [f for f in FILES if Path(f).exists()])
 
