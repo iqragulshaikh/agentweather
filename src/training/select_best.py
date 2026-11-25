@@ -1,13 +1,20 @@
 """Compare all model families and run the honest leave-one-fold-out selection.
-Reads every candidate file that exists (Day 8b: ridge/rf, Day 9: sarimax, ...)."""
+Reads every candidate file that exists and applies the decision rule:
+a model replaces the naive baseline only if it improves RMSE by >= 2% AND beats
+naive in >= 4 of 5 folds (leave-one-fold-out)."""
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 FILES = ["docs/results/day8b_diagnose.csv", "docs/results/day9_sarimax.csv",
-         "docs/results/day9b_sarimax_rolling.csv", "docs/results/day10_lstm.csv"]
-res = pd.concat([pd.read_csv(f) for f in FILES if Path(f).exists()], ignore_index=True)
-print("candidate files used:", [f for f in FILES if Path(f).exists()])
+         "docs/results/day9b_sarimax_rolling.csv", "docs/results/day10_lstm.csv",
+         "docs/results/day11_uv.csv", "docs/results/day11_winddir.csv"]
+MIN_GAIN_PCT, MIN_FOLDS = 2.0, 4
+
+used = [f for f in FILES if Path(f).exists()]
+res = pd.concat([pd.read_csv(f) for f in used], ignore_index=True)
+print("candidate files used:", used)
 
 res["family"] = res["model"].str.replace(r"_a\d+$", "", regex=True)   # ridge_a1000 -> ridge
 res["cand"] = res["model"] + "|lam=" + res["lam"].astype(str)
@@ -32,7 +39,9 @@ out = pd.DataFrame(rows)
 s = out.groupby("metric").agg(naive=("naive", "mean"), selected=("rmse", "mean"))
 s["improvement_pct"] = (1 - s["selected"] / s["naive"]) * 100
 s["folds_better"] = out.assign(w=out["rmse"] < out["naive"]).groupby("metric")["w"].sum()
-print("\n=== Leave-one-fold-out selection over ALL families (honest) ===")
+s["decision"] = np.where((s["improvement_pct"] >= MIN_GAIN_PCT) & (s["folds_better"] >= MIN_FOLDS),
+                         "MODEL", "naive baseline")
+print(f"\n=== Leave-one-fold-out selection (rule: gain >= {MIN_GAIN_PCT}% and >= {MIN_FOLDS} folds) ===")
 print(s.round(3).to_string())
 print("\n=== What was chosen per held-out fold ===")
 print(out.pivot(index="metric", columns="fold", values="chosen").to_string())
