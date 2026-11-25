@@ -389,3 +389,52 @@ baseline (value 24 h ago) on all metrics.
 - One year of data; the LSTM overfits after 1-6 epochs.
 - Candidate grids were widened after seeing early results (some optimism).
 - Selection noise grows with the number of candidates.
+
+## Day 11: UV, wind direction, rain probability, precipitation
+
+### 1. Setup
+- UV: Ridge/RF on the 24 h change, clipped at 0, scored on daytime hours only
+  (hours with UV > 0 at the target time); RMSE and MAE both reported.
+- Wind direction: Ridge/RF on the change of the sin/cos vector, converted back to an
+  angle with atan2, scored by angular error (lambda shrink applied to the vector).
+- Rain probability: logistic regression (C 0.01, 0.1, 1) and Random Forest classifier;
+  baselines: climatology (training base rate) and "raining now". Metrics: PR-AUC,
+  Brier score, Brier skill score (BSS) vs climatology, calibration table.
+- Precipitation (mm) = P(rain) x mean intensity of rainy hours in the training rows.
+
+### 2. Results
+- UV (daytime): RMSE 0.715 -> 0.659 (Ridge alpha 10, lambda 1; -7.9%, 5/5 folds), but
+  MAE 0.313 -> 0.350 (+12%): the model corrects large misses (cloudy/hazy days) and
+  adds small noise on ordinary hours. Winner sits at the edge of both grids.
+- Wind direction: angular RMSE 28.7 -> 25.9 deg (Ridge alpha 100, lambda 0.75; -9.7%,
+  5/5 folds); MAE also improves (19.3 -> about 17.5-18.0 deg).
+- Rain probability (mean over folds): logreg C=0.01 PR-AUC 0.262 / Brier 0.0708 /
+  BSS 0.140; C=0.1 0.252 / 0.0683 / 0.152; C=1 0.244 / 0.0696 / 0.134; RF 0.195 /
+  0.0725 / 0.109; climatology 0.089 / 0.0848; naive (raining now) 0.138 / 0.1137 /
+  -0.513. BSS per fold (C=0.1): 0.003, 0.000, 0.158, 0.321, 0.279: no skill in the
+  dry-season folds 1-2, clear skill in folds 3-5 (fold 5 has only ~18 rain events).
+- Precipitation (mm): RMSE climatology 0.1011, zero 0.1021, naive 0.1366,
+  logreg C=0.01 0.0996 (skill about +0.02), C=0.1 0.1033 (skill -0.18), RF 0.1060.
+  No demonstrated skill over climatology.
+
+### 3. ISSUE: rain probabilities are too low (calibration)
+- Pooled calibration of logreg C=0.1: predicted vs observed rain rate: 0.5% vs 2.4%,
+  3.3% vs 5.8%, 7.2% vs 11.0%, 14.1% vs 18.8%, 24.3% vs 30.9%, 37.8% vs 51.3%,
+  56.9% vs 78.8%. Ranking is good, absolute values are about a quarter to a third
+  too low.
+- Likely cause (not yet tested): the expanding window trains on dry months, so the
+  model's base rate is too low when the monsoon arrives.
+- Alert thresholds (pooled, precision / recall): P >= 0.1: 0.29 / 0.60; 0.2: 0.43 /
+  0.37; 0.3: 0.55 / 0.23; 0.5: 0.79 / 0.05. Proposed rule: "rain possible" at 0.1,
+  "rain likely" at 0.3. Raw probabilities are not quoted as true percentages.
+
+### 4. Selection (leave-one-fold-out, rule: >= 2% and >= 4 of 5 folds)
+- AQI -15.8% (5/5, MODEL); humidity -4.5% (4/5, MODEL); temperature -0.2% (3/5, naive
+  baseline); UV daytime -7.9% (5/5, MODEL); wind direction -9.7% (5/5, MODEL);
+  wind speed -6.5% (5/5, MODEL).
+
+### 5. Conclusions
+- Five of six metrics beat the baseline under the rule, plus rain probability.
+  Temperature ties the baseline; the rain amount ties climatology.
+- The probability of rain can be forecast; the amount of rain cannot be forecast
+  better than the average from one year of data.
