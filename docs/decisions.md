@@ -438,3 +438,18 @@ baseline (value 24 h ago) on all metrics.
   Temperature ties the baseline; the rain amount ties climatology.
 - The probability of rain can be forecast; the amount of rain cannot be forecast
   better than the average from one year of data.
+
+  - Scorecard (frozen method vs naive, mean RMSE over folds, folds better): AQI 11.532 ->
+  9.714 (15.8%, 5/5); humidity 8.314 -> 8.032 (3.4%, 5/5); wind speed 0.901 -> 0.822
+  (8.8%, 5/5); UV daytime 0.715 -> 0.659 (7.9%, 5/5); wind direction 28.656 -> 25.871
+  deg (9.7%, 5/5); temperature 0.974 -> 0.958 (1.6%, 4/5: fails the 2% rule, so the
+  naive baseline is used); rain probability: mean BSS 0.152, PR-AUC 0.252, positive in
+  5/5 folds; precipitation (mm): skill vs climatology -0.178, intensity 0.201 mm per
+  rainy hour, flagged indicative only.
+- Winners: Ridge (classical ML) for AQI, humidity, wind speed, UV, wind direction;
+  logistic regression for rain probability; naive for temperature. SARIMAX and LSTM
+  were competitive but did not clear the "simpler model unless >= 2% better" rule.
+- First forecast sanity check: UV is 0 at night and peaks at 5.06 at 13:00; temperature
+  19.3-30.2 C (naive); humidity opposite to temperature; wind direction rotates
+  N -> SW -> NW (sea breeze); AQI flat at 103-117; rain probability 0-2%.
+  Caveat: wind direction is unreliable when speed < 1 m/s (11:00: 0.94 m/s).
